@@ -523,7 +523,7 @@ Benefits:
 
 ---
 
-# 15. Advanced Improvements You Can Add
+# 15. Advanced Improvements we Can Add
 
 ## Recommended Features
 
@@ -559,9 +559,9 @@ Benefits:
 
 ---
 
-# 16. Best Part of Your Architecture
+# 16. Best Part of Our Architecture
 
-Your strongest architectural decisions are:
+Our strongest architectural decisions are:
 
 ✅ Immutable Ledger
 ✅ Double Entry Accounting
@@ -574,20 +574,6 @@ Your strongest architectural decisions are:
 These are concepts used in real fintech/backend systems.
 
 ---
-
-# 17. Suggested Architecture Name
-
-You can present this project as:
-
-> “Secure Ledger-Based Banking Transaction System”
-
-or
-
-> “Fintech Wallet & Double Entry Ledger Backend”
-
-or
-
-> “Banking Core System using Node.js & MongoDB”
 
 This is a strong backend project for:
 

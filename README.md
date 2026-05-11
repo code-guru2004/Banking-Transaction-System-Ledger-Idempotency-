@@ -83,7 +83,7 @@ project/
 │   └── email.service.js
 │
 ├── config/
-│
+│    └── db.js
 ├── app.js
 ├── server.js
 └── .env

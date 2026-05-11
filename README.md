@@ -22,33 +22,33 @@ It follows a layered backend architecture with:
 # 1. High Level Architecture
 
 ```text
-                ┌────────────────────┐
+                ┌─────────────────────┐
                 │     Client App      │
                 │ React / Mobile App  │
-                └─────────┬──────────┘
+                └─────────┬───────────┘
                           │ HTTP API
                           ▼
-                ┌────────────────────┐
-                │    Express Server   │
-                │  Routes + Middleware│
-                └─────────┬──────────┘
+                ┌──────────────────────┐
+                │    Express Server    │
+                │  Routes + Middleware │
+                └─────────┬────────────┘
                           │
           ┌───────────────┼────────────────┐
           ▼               ▼                ▼
- ┌────────────────┐ ┌──────────────┐ ┌──────────────┐
- │ Auth Controller│ │Account Ctrl  │ │TransactionCtrl│
- └────────┬───────┘ └──────┬───────┘ └──────┬───────┘
+ ┌────────────────┐ ┌──────────────┐ ┌───────────────┐
+ │ Auth Controller│ │ Account Ctrl │ │TransactionCtrl│
+ └────────┬───────┘ └──────┬───────┘ └──────┬────────┘
           │                │                │
           ▼                ▼                ▼
  ┌──────────────────────────────────────────────────┐
  │                Business Logic Layer              │
- │ JWT • PIN Security • Validation • Ledger Logic  │
+ │ JWT • PIN Security • Validation • Ledger Logic   │
  └──────────────────────────────────────────────────┘
                           │
                           ▼
  ┌──────────────────────────────────────────────────┐
  │                 MongoDB Database                 │
- │ Users • Accounts • Transactions • Ledger • JWT  │
+ │ Users • Accounts • Transactions • Ledger • JWT   │
  └──────────────────────────────────────────────────┘
 ```
 

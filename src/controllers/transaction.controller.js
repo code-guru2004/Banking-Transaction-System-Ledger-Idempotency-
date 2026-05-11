@@ -19,8 +19,8 @@ const crypto = require("crypto");
 
 //     // check idempotencyKey, if not provided generate random one
 //     //const idempotencyKey = crypto.randomUUID();
-    
-    
+
+
 //     // verify fromAccount, toAccount
 //     const fromUserAccount = await accountModel.findOne({ _id: fromAccount });
 //     const toUserAccount = await accountModel.findOne({ _id: toAccount });
@@ -88,7 +88,7 @@ const crypto = require("crypto");
 //         });
 //     }
 
-    
+
 //          // create transaction
 //     const session = await mongoose.startSession();
 //     session.startTransaction(); // Ensure Atomicity & Prevent inconsistency
@@ -142,7 +142,7 @@ const crypto = require("crypto");
 //     await session.commitTransaction();
 //     session.endSession();
 
-    
+
 
 //     // send email
 //     await emailService.sendTransactionEmail(
@@ -161,84 +161,114 @@ const crypto = require("crypto");
 
 async function createTransaction(req, res) {
     const { fromAccount, toAccount, amount, idempotencyKey } = req.body;
-  
+
     if (!fromAccount || !toAccount || amount == null || !idempotencyKey) {
-      return res.status(400).json({ success: false, message: "Missing fields" });
+        return res.status(400).json({ success: false, message: "Missing fields" });
     }
-  
+
     const amt = Number(amount);
     if (!Number.isFinite(amt) || amt <= 0) {
-      return res.status(400).json({ success: false, message: "Invalid amount" });
+        return res.status(400).json({ success: false, message: "Invalid amount" });
     }
-  
+
     const existingTx = await transactionModel.findOne({ idempotencyKey });
     if (existingTx) {
-      return res.status(200).json({ success: true, transaction: existingTx });
+        return res.status(200).json({ success: true, transaction: existingTx });
     }
-  
+
     const session = await mongoose.startSession();
-  
+
     try {
-      session.startTransaction();
-  
-      const fromUserAccount = await accountModel.findById(fromAccount).session(session);
-      const toUserAccount = await accountModel.findById(toAccount).session(session);
-  
-      if (!fromUserAccount || !toUserAccount) {
-        await session.abortTransaction();
-        return res.status(400).json({ success: false, message: "Invalid accounts" });
-      }
-  
-      // TODO: check ownership: fromUserAccount.user == req.user._id
-  
-      // balance check MUST be safe (depends on your getBalance)
-      const balance = await fromUserAccount.getBalance({ session });
-      if (balance < amt) {
-        await session.abortTransaction();
-        return res.status(400).json({ success: false, message: "Insufficient balance" });
-      }
-  
-      const [transaction] = await transactionModel.create(
-        [{ fromAccount, toAccount, amount: amt, idempotencyKey, status: "PENDING" }],
-        { session }
-      );
-  
-      await ledgerModel.create(
-        [{ account: fromAccount, amount: amt, transaction: transaction._id, type: "DEBIT" }],
-        { session }
-      );
-  
-      await ledgerModel.create(
-        [{ account: toAccount, amount: amt, transaction: transaction._id, type: "CREDIT" }],
-        { session }
-      );
-  
-      transaction.status = "COMPLETED";
-      await transaction.save({ session });
-  
-      await session.commitTransaction();
-      session.endSession();
-  
-      // email should not break API
-      emailService.sendTransactionEmail(req.user.email, req.user.name, amt, toAccount).catch(console.error);
-  
-      return res.status(201).json({
-        success: true,
-        message: "Transaction completed successfully",
-        transaction,
-      });
+        session.startTransaction();
+
+        const fromUserAccount = await accountModel.findById(fromAccount)
+                                                .select("+pinLockedUntil")
+                                                .session(session);
+        //console.log(fromUserAccount);
+        const toUserAccount = await accountModel.findById(toAccount).session(session);
+
+        if (!fromUserAccount || !toUserAccount) {
+            await session.abortTransaction();
+            return res.status(400).json({ success: false, message: "Invalid accounts" });
+        }
+
+        // Check User own account is pin locked or not
+        if (
+            fromUserAccount.pinLockedUntil &&
+            fromUserAccount.pinLockedUntil > new Date()
+        ) {
+            await session.abortTransaction();
+        
+            return res.status(403).json({
+                success: false,
+                message: "Account is temporarily locked for outgoing transactions",
+            });
+        }
+        // TODO: check ownership: fromUserAccount.user == req.user._id
+        if (
+            fromUserAccount.user.toString() !== req.user._id.toString()
+        ) {
+            await session.abortTransaction();
+        
+            return res.status(403).json({
+                success: false,
+                message: "Unauthorized account access",
+            });
+        }
+        // balance check MUST be safe (depends on your getBalance)
+        const balance = await fromUserAccount.getBalance({ session });
+        if (balance < amt) {
+            await session.abortTransaction();
+            return res.status(400).json({ success: false, message: "Insufficient balance" });
+        }
+
+        const [transaction] = await transactionModel.create(
+            [{ fromAccount, toAccount, amount: amt, idempotencyKey, status: "PENDING" }],
+            { session }
+        );
+
+        await ledgerModel.create(
+            [{ account: fromAccount, amount: amt, transaction: transaction._id, type: "DEBIT" }],
+            { session }
+        );
+
+        await ledgerModel.create(
+            [{ account: toAccount, amount: amt, transaction: transaction._id, type: "CREDIT" }],
+            { session }
+        );
+
+        transaction.status = "COMPLETED";
+        await transaction.save({ session });
+
+        await accountModel.updateMany(
+            { _id: { $in: [fromAccount, toAccount] } },
+            { $set: { lastTransactionAt: new Date(), status: "ACTIVE" } },
+            { session }
+        );
+
+        await session.commitTransaction();
+        session.endSession();
+
+        // email should not break API
+        emailService.sendTransactionEmail(req.user.email, req.user.name, amt, toAccount).catch(console.error);
+
+        return res.status(201).json({
+            success: true,
+            message: "Transaction completed successfully",
+            transaction,
+        });
     } catch (err) {
-      await session.abortTransaction();
-      session.endSession();
-  
-      return res.status(500).json({
-        success: false,
-        message: "Transaction failed",
-        error: err.message,
-      });
+        await session.abortTransaction();
+        session.endSession();
+
+        return res.status(500).json({
+            success: false,
+            message: "Transaction failed",
+            error: err.message,
+        });
     }
-  }
-  
+}
+
 
 async function createInitialBalanceTransaction(req, res) {
     const { accountId, amount, idempotencyKey } = req.body;
@@ -261,7 +291,7 @@ async function createInitialBalanceTransaction(req, res) {
     const fromUserAccount = await accountModel.findOne({
         user: req.user._id.toString(),
     });
-
+    console.log("From User Account:", fromUserAccount);
     // console.log(fromUserAccount);
 
     if (!fromUserAccount) {
@@ -351,6 +381,12 @@ async function createInitialBalanceTransaction(req, res) {
 
         transaction.status = "COMPLETED";
         await transaction.save({ session });
+
+        await accountModel.updateMany(
+            { _id: { $in: [fromUserAccount, accountId] } },
+            { $set: { lastTransactionAt: new Date(), status: "ACTIVE" } },
+            { session }
+          );
 
         await session.commitTransaction();
 

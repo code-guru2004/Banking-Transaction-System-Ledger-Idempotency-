@@ -27,7 +27,7 @@ async function authMiddleware(req, res, next){
 
         const user = await userModel.findById(decoded.userId); // Find user by ID from token payload
 
-        console.log(user);
+        //console.log(user);
         
         if(!user){
             return res.status(401).json({

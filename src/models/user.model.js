@@ -28,7 +28,6 @@ const userSchema = new mongoose.Schema({
         default: false,
         immutable: true,// systemUser field cannot be changed after creation,
         select: false // Exclude systemUser from query results by default
-
     }
 },{
     timestamps: true
